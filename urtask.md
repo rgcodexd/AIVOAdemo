@@ -6,11 +6,11 @@ Please follow these steps to manually set up the backend environment and start t
 - Node.js (v18+)
 - Python (v3.10+)
 - A Groq API Key
-- A PostgreSQL or MySQL database instance
+- A MySQL database instance
 
 ## Step 1: Database Setup
 1. Create a database for this project, for example `aivoa_deviations`.
-2. Make sure you have the correct connection string (e.g. `postgresql://user:password@localhost:5432/aivoa_deviations` or `mysql+pymysql://user:password@localhost:3306/aivoa_deviations`).
+2. Make sure you have the correct connection string (e.g. `mysql+pymysql://user:password@localhost:3306/aivoa_deviations`).
 
 ## Step 2: Backend Configuration (.env)
 1. In the `backend` folder, create a `.env` file based on the `.env.example` structure.
@@ -20,7 +20,7 @@ Please follow these steps to manually set up the backend environment and start t
 Example `.env`:
 ```
 GROQ_API_KEY=your_groq_api_key_here
-DATABASE_URL=postgresql://postgres:password@localhost:5432/aivoa_deviations
+DATABASE_URL=mysql+pymysql://root:password@localhost:3306/aivoa_deviations
 ```
 
 ## Step 3: Run the Backend
