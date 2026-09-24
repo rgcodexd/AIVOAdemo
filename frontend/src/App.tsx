@@ -2,13 +2,15 @@ import React, { useState, useRef } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import type { RootState } from './store';
 import { updateFormField, updateMultipleFields, resetForm, setExtractionState, addMessage } from './features/deviationSlice';
-import { Bell, ChevronDown, CheckCircle2, RotateCcw, Save, Send, UploadCloud, Search, Zap } from 'lucide-react';
+import { Bell, ChevronDown, CheckCircle2, RotateCcw, Save, Send, UploadCloud, Search, Zap, Paperclip, X, FileText } from 'lucide-react';
+import { AnimatePresence, motion } from 'framer-motion';
 import axios from 'axios';
 
 function App() {
   const dispatch = useDispatch();
   const { form, ai } = useSelector((state: RootState) => state.deviation);
   const [inputText, setInputText] = useState('');
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [selectedCompany] = useState('Vasudha Pharma Chem Limited');
   const fileInputRef = useRef<HTMLInputElement>(null);
   
@@ -71,15 +73,23 @@ function App() {
     }
   };
 
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
-      const file = e.target.files[0];
-      
+      setSelectedFile(e.target.files[0]);
+    }
+  };
+
+  const handleSend = async () => {
+    if (selectedFile) {
+      const fileToUpload = selectedFile;
+      setSelectedFile(null); // Restore upload zone immediately
+      if (fileInputRef.current) fileInputRef.current.value = '';
+
       dispatch(setExtractionState({ isExtracting: true, progress: 10 }));
-      dispatch(addMessage({ text: `Uploaded document: ${file.name}`, sender: 'user' }));
+      dispatch(addMessage({ text: `Uploaded document: ${fileToUpload.name}`, sender: 'user' }));
       
       const formData = new FormData();
-      formData.append("file", file);
+      formData.append("file", fileToUpload);
 
       let currentProgress = 10;
       const progressInterval = setInterval(() => {
@@ -90,9 +100,7 @@ function App() {
 
       try {
         const response = await axios.post('http://localhost:8000/api/upload-document', formData, {
-          headers: {
-            'Content-Type': 'multipart/form-data'
-          }
+          headers: { 'Content-Type': 'multipart/form-data' }
         });
         
         clearInterval(progressInterval);
@@ -112,6 +120,8 @@ function App() {
         dispatch(setExtractionState({ isExtracting: false, progress: 0 }));
         dispatch(addMessage({ text: 'Sorry, I could not extract details from that document.', sender: 'ai' }));
       }
+    } else if (inputText.trim()) {
+      handleProcessText(inputText);
     }
   };
 
@@ -268,33 +278,69 @@ function App() {
             <span className="beta-badge">BETA</span>
           </div>
 
-          <div 
-            className="ai-dropzone" 
-            onClick={() => fileInputRef.current?.click()}
-            onDragOver={(e) => e.preventDefault()}
-            onDrop={(e) => {
-              e.preventDefault();
-              if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-                fileInputRef.current!.files = e.dataTransfer.files;
-                handleFileUpload({ target: { files: e.dataTransfer.files } } as any);
-              }
-            }}
-          >
-            <UploadCloud size={32} className="ai-dropzone-icon" />
-            <div className="ai-dropzone-text">
-              Drag & drop supporting document here
-            </div>
-            <div className="ai-dropzone-sub">
-              or click to browse
-            </div>
-            <input 
-              type="file" 
-              ref={fileInputRef} 
-              style={{ display: 'none' }} 
-              onChange={handleFileUpload} 
-              accept=".pdf,.docx,.txt,.xls,.jpg,.png"
-            />
-          </div>
+          <AnimatePresence mode="wait">
+            {!selectedFile ? (
+              <motion.div 
+                key="dropzone"
+                initial={{ opacity: 0, scale: 0.95, height: 0 }}
+                animate={{ opacity: 1, scale: 1, height: 'auto' }}
+                exit={{ opacity: 0, scale: 0.95, height: 0, overflow: 'hidden' }}
+                transition={{ duration: 0.2 }}
+                className="ai-dropzone" 
+                onClick={() => fileInputRef.current?.click()}
+                onDragOver={(e) => e.preventDefault()}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+                    fileInputRef.current!.files = e.dataTransfer.files;
+                    setSelectedFile(e.dataTransfer.files[0]);
+                  }
+                }}
+              >
+                <UploadCloud size={32} className="ai-dropzone-icon" />
+                <div className="ai-dropzone-text">
+                  Drag & drop supporting document here
+                </div>
+                <div className="ai-dropzone-sub">
+                  or click to browse
+                </div>
+              </motion.div>
+            ) : (
+              <motion.div
+                key="file-pill"
+                initial={{ opacity: 0, scale: 0.95, height: 0 }}
+                animate={{ opacity: 1, scale: 1, height: 'auto' }}
+                exit={{ opacity: 0, scale: 0.95, height: 0, overflow: 'hidden' }}
+                transition={{ duration: 0.2 }}
+                className="file-attachment-compact"
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <div className="file-icon-wrapper">
+                    <FileText size={20} color="var(--primary-color)" />
+                  </div>
+                  <span className="file-name">{selectedFile.name}</span>
+                </div>
+                <button 
+                  className="file-remove-btn" 
+                  onClick={() => {
+                    setSelectedFile(null);
+                    if (fileInputRef.current) fileInputRef.current.value = '';
+                  }}
+                  title="Remove file"
+                >
+                  <X size={16} />
+                </button>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          <input 
+            type="file" 
+            ref={fileInputRef} 
+            style={{ display: 'none' }} 
+            onChange={handleFileUpload} 
+            accept=".pdf,.docx,.txt,.xls,.jpg,.png"
+          />
           
           <div className="supported-formats">
             <CheckCircle2 size={16} style={{ marginTop: '2px', flexShrink: 0 }} />
@@ -355,10 +401,19 @@ function App() {
                 }
               }}
             />
+            <div style={{ position: 'absolute', bottom: '12px', left: '12px', display: 'flex', gap: '8px' }}>
+              <button 
+                className="ai-attach-btn"
+                onClick={() => fileInputRef.current?.click()}
+                title="Attach Document"
+              >
+                <Paperclip size={18} />
+              </button>
+            </div>
             <button 
               className="ai-send-btn" 
-              disabled={!inputText.trim() || ai.isExtracting}
-              onClick={() => handleProcessText(inputText)}
+              disabled={(!inputText.trim() && !selectedFile) || ai.isExtracting}
+              onClick={handleSend}
             >
               <Send size={14} />
             </button>
