@@ -13,12 +13,17 @@ Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="AIVOA Deviation API")
 
-# Enable CORS
+# Enable CORS - Fixed Security Vulnerability (No longer using wildcard '*')
+# Restrict this to exactly where the frontend is hosted.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"], # For development
+    allow_origins=[
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "http://localhost:3000", # Common alternative
+    ],
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE"], # Restrict allowed methods
     allow_headers=["*"],
 )
 
@@ -32,9 +37,11 @@ def extract_deviation(request: schemas.ExtractionRequest):
         extracted = run_extraction(request.text, request.current_state)
         return {"extracted_data": extracted}
     except ValueError as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Extraction failed: {str(e)}")
+        # Security: Do not leak internal stack traces or exact exceptions to the client
+        print(f"Internal Server Error during extraction: {e}")
+        raise HTTPException(status_code=500, detail="An unexpected internal error occurred during text extraction.")
 
 from fastapi import UploadFile, File
 import PyPDF2
@@ -42,6 +49,11 @@ import io
 
 @app.post("/api/upload-document")
 async def upload_document(file: UploadFile = File(...)):
+    # Security: Enforce a strict 10MB file size limit to prevent Denial of Service (DoS/OOM)
+    MAX_FILE_SIZE = 10 * 1024 * 1024 # 10 MB
+    if file.size and file.size > MAX_FILE_SIZE:
+        raise HTTPException(status_code=413, detail="File too large. Maximum size is 10MB.")
+
     text = ""
     if file.filename.endswith(".pdf"):
         content = await file.read()
@@ -60,7 +72,9 @@ async def upload_document(file: UploadFile = File(...)):
         extracted = run_extraction(f"Document content:\n{text}")
         return {"extracted_data": extracted, "extracted_text": text}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Extraction failed: {str(e)}")
+        # Security: Prevent data leakage of API keys or stack traces
+        print(f"Internal Server Error during document extraction: {e}")
+        raise HTTPException(status_code=500, detail="An unexpected internal error occurred during document extraction.")
 
 @app.post("/api/save-deviation")
 def save_deviation(deviation: schemas.DeviationCreate, db: Session = Depends(get_db)):
