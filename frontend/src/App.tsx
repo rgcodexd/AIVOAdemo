@@ -34,7 +34,7 @@ function App() {
 
     try {
       // Call Backend API
-      const response = await axios.post('http://localhost:8000/api/extract-deviation', { text: textToProcess });
+      const response = await axios.post('http://localhost:8000/api/extract-deviation', { text: textToProcess, current_state: form });
       
       clearInterval(progressInterval);
       dispatch(setExtractionState({ isExtracting: true, progress: 100 }));
@@ -47,7 +47,7 @@ function App() {
         
         // Add AI response message
         dispatch(addMessage({ 
-          text: `I've analyzed the text and populated the form for you. \n\nSuggested Impact: **${response.data.extracted_data.initialImpact}**\nSuggested Severity: **${response.data.extracted_data.initialSeverity}**\n\n${response.data.extracted_data.aiExplanation}`,
+          text: `I've analyzed the text and updated the form for you. \n\nSuggested Impact: **${response.data.extracted_data.initialImpact}**\nSuggested Severity: **${response.data.extracted_data.initialSeverity}**\n\n${response.data.extracted_data.aiExplanation}`,
           sender: 'ai'
         }));
       }, 500);
@@ -71,21 +71,46 @@ function App() {
     }
   };
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
-      // In a real app we would upload the file to parse it or use OCR. 
-      // For this demo, we'll simulate by processing a dummy text if it's a text file.
-      const reader = new FileReader();
-      reader.onload = (event) => {
-         const text = event.target?.result as string;
-         if (text) handleProcessText(text);
-         else handleProcessText(`Processed uploaded file: ${file.name}`);
-      };
-      if (file.type.includes('text')) {
-        reader.readAsText(file);
-      } else {
-        handleProcessText(`Please analyze this uploaded document: ${file.name}`);
+      
+      dispatch(setExtractionState({ isExtracting: true, progress: 10 }));
+      dispatch(addMessage({ text: `Uploaded document: ${file.name}`, sender: 'user' }));
+      
+      const formData = new FormData();
+      formData.append("file", file);
+
+      let currentProgress = 10;
+      const progressInterval = setInterval(() => {
+        currentProgress += 15;
+        if (currentProgress > 85) clearInterval(progressInterval);
+        dispatch(setExtractionState({ isExtracting: true, progress: Math.min(currentProgress, 85) }));
+      }, 400);
+
+      try {
+        const response = await axios.post('http://localhost:8000/api/upload-document', formData, {
+          headers: {
+            'Content-Type': 'multipart/form-data'
+          }
+        });
+        
+        clearInterval(progressInterval);
+        dispatch(setExtractionState({ isExtracting: true, progress: 100 }));
+        
+        setTimeout(() => {
+          dispatch(setExtractionState({ isExtracting: false, progress: 0 }));
+          dispatch(updateMultipleFields(response.data.extracted_data));
+          dispatch(addMessage({ 
+            text: `I've extracted the details from the document and populated the form. \n\nSuggested Impact: **${response.data.extracted_data.initialImpact}**\nSuggested Severity: **${response.data.extracted_data.initialSeverity}**\n\n${response.data.extracted_data.aiExplanation}`,
+            sender: 'ai'
+          }));
+        }, 500);
+      } catch (error) {
+        console.error('Upload failed:', error);
+        clearInterval(progressInterval);
+        dispatch(setExtractionState({ isExtracting: false, progress: 0 }));
+        dispatch(addMessage({ text: 'Sorry, I could not extract details from that document.', sender: 'ai' }));
       }
     }
   };

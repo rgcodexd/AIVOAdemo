@@ -18,6 +18,7 @@ else:
 
 class ExtractionState(TypedDict):
     input_text: str
+    current_state: dict | None
     extracted_data: dict
 
 def extract_information(state: ExtractionState):
@@ -29,24 +30,30 @@ def extract_information(state: ExtractionState):
     
     prompt = """
     You are an AI assistant for a pharmaceutical manufacturing quality management system.
-    Your task is to analyze the following deviation report or note and extract the required information into the structured format.
+    Your task is to analyze the following deviation report/note and extract/update the required information into the structured format.
     
     Rules:
+    - If a 'Current Form State' is provided, you must PRESERVE all its existing information UNLESS the 'New Text / Request' explicitly changes or corrects it.
+    - If the 'New Text / Request' provides a correction (e.g. "sorry the batch number is X"), UPDATE only that specific field and retain everything else.
     - Determine 'site', 'dateOfOccurrence', 'source', 'relatedProduct', 'batchNumber', and 'title' from the text if available.
     - Write a 'description' summarizing the event.
     - Evaluate 'initialImpact' (High, Medium, Low) and 'initialSeverity' (Critical, Major, Minor).
     - Provide a short 1-2 sentence 'aiExplanation' justifying your impact and severity choice.
-    - If a field is unknown, leave it empty or use your best judgment if context strongly implies it.
+    - If a field is unknown and not in the current state, leave it empty.
     
-    Text to analyze:
+    Current Form State (JSON):
+    {current_state}
+    
+    New Text / Request to analyze:
     {input_text}
     """
     
-    prompt_template = PromptTemplate(template=prompt, input_variables=["input_text"])
+    prompt_template = PromptTemplate(template=prompt, input_variables=["input_text", "current_state"])
     
     chain = prompt_template | structured_llm
     
-    result = chain.invoke({"input_text": state["input_text"]})
+    current_state_str = str(state.get("current_state") or {})
+    result = chain.invoke({"input_text": state["input_text"], "current_state": current_state_str})
     
     return {"extracted_data": result.dict()}
 
@@ -59,6 +66,6 @@ def build_graph():
 
 extraction_graph = build_graph()
 
-def run_extraction(text: str) -> dict:
-    result = extraction_graph.invoke({"input_text": text})
+def run_extraction(text: str, current_state: dict = None) -> dict:
+    result = extraction_graph.invoke({"input_text": text, "current_state": current_state})
     return result.get("extracted_data", {})

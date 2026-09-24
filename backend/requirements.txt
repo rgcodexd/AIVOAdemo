@@ -7,3 +7,5 @@ groq
 pydantic
 sqlalchemy
 pymysql
+PyPDF2
+python-multipart

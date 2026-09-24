@@ -29,10 +29,36 @@ def read_root():
 @app.post("/api/extract-deviation", response_model=schemas.ExtractionResponse)
 def extract_deviation(request: schemas.ExtractionRequest):
     try:
-        extracted = run_extraction(request.text)
+        extracted = run_extraction(request.text, request.current_state)
         return {"extracted_data": extracted}
     except ValueError as e:
         raise HTTPException(status_code=500, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Extraction failed: {str(e)}")
+
+from fastapi import UploadFile, File
+import PyPDF2
+import io
+
+@app.post("/api/upload-document")
+async def upload_document(file: UploadFile = File(...)):
+    text = ""
+    if file.filename.endswith(".pdf"):
+        content = await file.read()
+        pdf = PyPDF2.PdfReader(io.BytesIO(content))
+        for page in pdf.pages:
+            text += page.extract_text() + "\n"
+    else:
+        # Default to reading as text for other supported types (.txt)
+        content = await file.read()
+        text = content.decode('utf-8', errors='ignore')
+        
+    if not text.strip():
+        raise HTTPException(status_code=400, detail="Could not extract text from document.")
+        
+    try:
+        extracted = run_extraction(f"Document content:\n{text}")
+        return {"extracted_data": extracted, "extracted_text": text}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Extraction failed: {str(e)}")
 

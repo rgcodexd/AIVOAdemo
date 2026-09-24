@@ -3,6 +3,7 @@ from typing import Optional
 
 class ExtractionRequest(BaseModel):
     text: str
+    current_state: Optional[dict] = Field(default=None, description="The current state of the form to allow for contextual editing.")
 
 class DeviationData(BaseModel):
     site: Optional[str] = Field(default="", description="The manufacturing site or plant where the deviation occurred (e.g. API Manufacturing Unit, Formulation Unit).")
