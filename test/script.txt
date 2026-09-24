@@ -1,0 +1,127 @@
+========================================================================
+AIVOA DEVIATION MODULE - VIDEO SUBMISSION SCRIPT
+========================================================================
+Total Estimated Time: 5-8 Minutes per video
+Instructions: Read the [BOLD TEXT] out loud. Follow the (Action) cues on your screen.
+
+------------------------------------------------------------------------
+VIDEO 1: PRODUCT DEMO & WORKFLOW (Approx. 3-4 Minutes)
+------------------------------------------------------------------------
+
+(Action: Open the browser to the AIVOA frontend. Ensure the backend is running. 
+Keep the sample_deviation.pdf ready on your desktop).
+
+[SPEAKER]:
+"Hello, today I will be demonstrating the AI-powered Deviation Intake Module for AIVOA. 
+The goal of this project is to automate the extraction of critical deviation data from
+ documents and raw text to drastically reduce manual data entry."
+
+(Action: Point to the empty form on the left, and the AI Assistant on the right).
+
+[SPEAKER]:
+"Here is our main interface. On the left, we have the structured 'Log Deviation' form.
+ On the right is our intelligent AI Assistant workspace. Let's see it in action by uploading 
+ a standard deviation report."
+
+(Action: Click the large drag-and-drop area or the attach button, and select 'sample_deviation.pdf'.
+ Wait for the animation to turn it into a compact file pill, then click the 'Send' button).
+
+[SPEAKER]:
+"I am uploading a sample PDF report detailing an Out-Of-Specification result. The file is staged, 
+and when I click send, it is securely transmitted to our backend. Notice the dynamic progress bar
+ indicating that our AI is actively extracting the data."
+
+(Action: Wait for the extraction to finish and the form to populate).
+
+[SPEAKER]:
+"As you can see, the AI has successfully processed the document. It automatically mapped 
+the correct Site, Date, Title, Source, and Batch Number. It also summarized the detailed description 
+perfectly."
+
+(Action: Scroll down to the Impact/Severity section).
+
+[SPEAKER]:
+"More importantly, the AI performed an initial risk assessment. It accurately flagged the 'Initial Impact'
+as High and 'Initial Severity' as Critical. Below that, it generated a concise AI Assessment explaining
+ its reasoning, noting that the Assay failure of an active ingredient prevents batch release."
+
+(Action: Type a correction in the chat box, e.g., "Actually, the source was Manufacturing, not QC. 
+Please update.")
+
+[SPEAKER]:
+"Our module also supports Contextual Editing. If I notice a discrepancy—for example, 
+if the source was actually Manufacturing—I can simply tell the AI to correct it. Because 
+we maintain the state in Redux, the AI knows to update *only* the Source field while preserving 
+all other extracted data."
+
+(Action: Click Save Deviation. Show the success alert).
+
+[SPEAKER]:
+"Once reviewed, the user clicks 'Save Deviation', which persists the validated structured 
+data directly into our MySQL database. That concludes the workflow demo."
+
+
+------------------------------------------------------------------------
+VIDEO 2: TECHNICAL & CODE WALKTHROUGH (Approx. 4-6 Minutes)
+------------------------------------------------------------------------
+
+(Action: Open VS Code. Have frontend/src/App.tsx open).
+
+[SPEAKER]:
+"In this second video, I will do a deep dive into the code. Let me show you exactly how data 
+flows from the user's browser, into the Python backend, through the AI, and back to populate the form. 
+
+If you see here in `frontend/src/App.tsx`, around line 77, we have the `handleSend` function. 
+This is triggered when the user clicks 'Send' after attaching a PDF. 
+Looking around line 86, we take that file and append it to a Javascript `FormData` object. 
+Then, on line 95, we use `axios.post` to send this data directly to our backend 
+API at `http://localhost:8000/api/upload-document`."
+
+(Action: Switch to `backend/main.py`. Scroll to line 43).
+
+[SPEAKER]:
+"Now let's switch to the backend. In `backend/main.py`, if you look at line 43, this is the starting
+ line for the code to take the PDF. The FastAPI endpoint `@app.post('/api/upload-document')` receives 
+ the file.
+See here on line 48: we use the `PyPDF2.PdfReader` library to read the raw bytes of the file directly 
+in-memory, without having to save it to disk. It loops through the pages and extracts the raw string text.
+Once we have the text, on line 60 we call `run_extraction(text)` and pass that text into our AI processing 
+pipeline."
+
+(Action: Switch to `backend/agent.py`. Scroll to line 11).
+
+[SPEAKER]:
+"This brings us to the core AI engine in `backend/agent.py`. 
+First, if you see around line 12, this is how we are securely passing our API key from the `.env` file
+ using `os.getenv('GROQ_API_KEY')`. 
+On line 14, we initialize the LangChain `ChatGroq` client, specifically requesting the `qwen3.8-27b` 
+model because it perfectly supports structured JSON outputs."
+
+(Action: Switch briefly to `backend/schemas.py`, line 8).
+
+[SPEAKER]:
+"Before sending data to the AI, look here in `schemas.py` at line 8. We define a Pydantic class called
+ `DeviationData`. This is essentially a strict blueprint. It tells the AI exactly which fields we need:
+  site, date, batchNumber, initialImpact, etc."
+
+(Action: Switch back to `backend/agent.py`, scroll to line 29).
+
+[SPEAKER]:
+"Back in `agent.py`, on line 29, we do something critical: we call 
+`llm.with_structured_output(DeviationData)`. This enforces the AI to reply *only* in a perfectly 
+formatted JSON structure matching our Pydantic schema, eliminating the risk of unreadable string responses.
+
+Then, starting at line 31, we define our Prompt. Notice how we pass in both the `{input_text}` 
+(the PDF content) AND the `{current_state}`. Passing the current state is what allows our 'Contextual 
+Editing' feature to work without wiping out data the user has already entered!"
+
+(Action: Switch back to `frontend/src/App.tsx`, scroll to line 108).
+
+[SPEAKER]:
+"Finally, the AI returns the JSON dictionary to the backend, which sends it back to the frontend. 
+If we go back to `App.tsx` on line 109, you can see 
+`dispatch(updateMultipleFields(response.data.extracted_data))`. This Redux action takes the 
+AI's exact JSON output and instantly populates the React form UI for the user to review.
+
+And that completes the end-to-end technical flow of the application! Thank you for watching."
+========================================================================
