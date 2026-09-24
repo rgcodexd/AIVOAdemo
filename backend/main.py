@@ -70,5 +70,6 @@ def save_deviation(deviation: schemas.DeviationCreate, db: Session = Depends(get
     db.refresh(db_deviation)
     return {"status": "success", "id": db_deviation.id}
 
+
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)

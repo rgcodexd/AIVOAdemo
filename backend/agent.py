@@ -11,7 +11,7 @@ load_dotenv()
 # We will use Groq model as requested
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 if GROQ_API_KEY:
-    llm = ChatGroq(model="llama-3.3-70b-versatile", temperature=0)
+    llm = ChatGroq(model="qwen/qwen3.8-27b", temperature=0)
 else:
     # Fallback to None, will fail at runtime if key isn't provided
     llm = None
