@@ -1,7 +1,7 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import type { RootState } from './store';
-import { updateFormField, updateMultipleFields, resetForm, setExtractionState, addMessage } from './features/deviationSlice';
+import { updateFormField, updateDynamicField, updateMultipleFields, resetForm, setExtractionState, addMessage } from './features/deviationSlice';
 import { Bell, ChevronDown, CheckCircle2, RotateCcw, Save, Send, UploadCloud, Search, Zap, Paperclip, X, FileText } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 import axios from 'axios';
@@ -10,9 +10,27 @@ function App() {
   const dispatch = useDispatch();
   const { form, ai } = useSelector((state: RootState) => state.deviation);
   const [inputText, setInputText] = useState('');
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [selectedCompany] = useState('Vasudha Pharma Chem Limited');
   const fileInputRef = useRef<HTMLInputElement>(null);
+  
+  const previousFormRef = useRef(form);
+  const [updatedFields, setUpdatedFields] = useState<string[]>([]);
+
+  useEffect(() => {
+    const changed = Object.keys(form).filter(
+      k => form[k as keyof typeof form] !== previousFormRef.current[k as keyof typeof form]
+    );
+    if (changed.length > 0) {
+      setUpdatedFields(changed);
+      const timer = setTimeout(() => setUpdatedFields([]), 1500);
+      previousFormRef.current = form;
+      return () => clearTimeout(timer);
+    }
+  }, [form]);
+
+  const getFieldClass = (fieldName: string, extraClass: string = '') => {
+    return `${extraClass} ${updatedFields.includes(fieldName) ? 'highlight-field' : ''}`.trim();
+  };
   
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     dispatch(updateFormField({ field: e.target.name as any, value: e.target.value }));
@@ -73,23 +91,16 @@ function App() {
     }
   };
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
-      setSelectedFile(e.target.files[0]);
-    }
-  };
-
-  const handleSend = async () => {
-    if (selectedFile) {
-      const fileToUpload = selectedFile;
-      setSelectedFile(null); // Restore upload zone immediately
+      const file = e.target.files[0];
       if (fileInputRef.current) fileInputRef.current.value = '';
 
       dispatch(setExtractionState({ isExtracting: true, progress: 10 }));
-      dispatch(addMessage({ text: `Uploaded document: ${fileToUpload.name}`, sender: 'user' }));
+      dispatch(addMessage({ text: `Uploaded document: ${file.name}`, sender: 'user' }));
       
       const formData = new FormData();
-      formData.append("file", fileToUpload);
+      formData.append("file", file);
 
       let currentProgress = 10;
       const progressInterval = setInterval(() => {
@@ -110,7 +121,7 @@ function App() {
           dispatch(setExtractionState({ isExtracting: false, progress: 0 }));
           dispatch(updateMultipleFields(response.data.extracted_data));
           dispatch(addMessage({ 
-            text: `I've extracted the details from the document and populated the form. \n\nSuggested Impact: **${response.data.extracted_data.initialImpact}**\nSuggested Severity: **${response.data.extracted_data.initialSeverity}**\n\n${response.data.extracted_data.aiExplanation}`,
+            text: `Complaint parsed successfully. I've extracted the product details, mapped the batch information, and generated an initial risk assessment for the issue.`,
             sender: 'ai'
           }));
         }, 500);
@@ -120,7 +131,11 @@ function App() {
         dispatch(setExtractionState({ isExtracting: false, progress: 0 }));
         dispatch(addMessage({ text: 'Sorry, I could not extract details from that document.', sender: 'ai' }));
       }
-    } else if (inputText.trim()) {
+    }
+  };
+
+  const handleSend = async () => {
+    if (inputText.trim()) {
       handleProcessText(inputText);
     }
   };
@@ -128,10 +143,17 @@ function App() {
   const getSeverityClass = (sev: string) => {
     if (!sev) return '';
     const s = sev.toLowerCase();
-    if (s.includes('high') || s.includes('critical')) return 'severity-high';
+    if (s.includes('high') || s.includes('critical') || s.includes('major')) return 'severity-high';
     if (s.includes('medium') || s.includes('moderate')) return 'severity-medium';
     return 'severity-low';
   };
+
+  // Group fields by section
+  const sections = form.fields.reduce((acc, field) => {
+    if (!acc[field.section]) acc[field.section] = [];
+    acc[field.section].push(field);
+    return acc;
+  }, {} as Record<string, typeof form.fields>);
 
   return (
     <div className="app-container">
@@ -157,113 +179,90 @@ function App() {
         <section className="form-panel">
           <div className="form-header">
             <div>
-              <h1>Log Deviation</h1>
-              <p>Record any unexpected event, out-of-specification result or non-conformance.</p>
+              <h1>{form.formTitle}</h1>
+              <p>{form.formDescription}</p>
             </div>
             <span className="status-badge">Draft</span>
           </div>
 
           <div className="form-section">
-            <div className="form-section-title">1. DEVIATION INFORMATION</div>
-            <div className="form-grid">
-              <div className="form-group">
-                <label>Site / Plant <span className="required">*</span></label>
-                <select name="site" value={form.site} onChange={handleInputChange}>
-                  <option value="">Select site</option>
-                  <option value="API Manufacturing Unit">API Manufacturing Unit</option>
-                  <option value="Formulation Unit">Formulation Unit</option>
-                  <option value="Packaging Unit">Packaging Unit</option>
-                </select>
+            {form.fields.length === 0 ? (
+              <div style={{ padding: '32px', textAlign: 'center', color: 'var(--text-muted)' }}>
+                No fields generated yet. Upload a document or chat to build the form.
               </div>
-              <div className="form-group">
-                <label>Date of Occurrence <span className="required">*</span></label>
-                <input type="date" name="dateOfOccurrence" value={form.dateOfOccurrence} onChange={handleInputChange} />
-              </div>
-            </div>
-
-            <div className="form-grid">
-              <div className="form-group">
-                <label>Title / Short Description <span className="required">*</span></label>
-                <input type="text" name="title" value={form.title} onChange={handleInputChange} placeholder="e.g. OOS result for Assay in Batch ABC-001" />
-              </div>
-              <div className="form-group">
-                <label>Source <span className="required">*</span></label>
-                <select name="source" value={form.source} onChange={handleInputChange}>
-                  <option value="">Select source</option>
-                  <option value="Manufacturing">Manufacturing</option>
-                  <option value="Quality Control (QC)">Quality Control (QC)</option>
-                  <option value="Engineering / Maintenance">Engineering / Maintenance</option>
-                  <option value="Warehouse">Warehouse</option>
-                </select>
-              </div>
-            </div>
-
-            <div className="form-grid">
-              <div className="form-group" style={{ position: 'relative' }}>
-                <label>Related Product / Material</label>
-                <input type="text" name="relatedProduct" value={form.relatedProduct} onChange={handleInputChange} placeholder="Search product or material..." />
-                <Search size={16} color="var(--text-muted)" style={{ position: 'absolute', right: '12px', top: '32px' }} />
-              </div>
-              <div className="form-group">
-                <label>Batch/Lot Number</label>
-                <input type="text" name="batchNumber" value={form.batchNumber} onChange={handleInputChange} placeholder="Enter batch / lot no." />
-              </div>
-            </div>
-          </div>
-
-          <div className="form-section" style={{ marginTop: '16px' }}>
-            <div className="form-section-title">2. DEVIATION DETAILS</div>
-            <div className="form-group">
-              <label>Detailed Description <span className="required">*</span></label>
-              <textarea 
-                name="description" 
-                value={form.description} 
-                onChange={handleInputChange} 
-                placeholder="Describe what happened, where, when and how it was detected..."
-                style={{ height: '140px' }}
-              />
-              <div style={{ textAlign: 'right', fontSize: '11px', color: 'var(--text-muted)' }}>
-                {form.description.length}/2000
-              </div>
-            </div>
-
-            <div className="form-grid">
-              <div className="form-group">
-                <label>Initial Impact <span className="required">*</span></label>
-                <select name="initialImpact" value={form.initialImpact} onChange={handleInputChange} className={getSeverityClass(form.initialImpact)}>
-                  <option value="">Select impact</option>
-                  <option value="High">High</option>
-                  <option value="Medium">Medium</option>
-                  <option value="Low">Low</option>
-                </select>
-              </div>
-              <div className="form-group">
-                <label>Initial Severity <span className="required">*</span></label>
-                <select name="initialSeverity" value={form.initialSeverity} onChange={handleInputChange} className={getSeverityClass(form.initialSeverity)}>
-                  <option value="">Select severity</option>
-                  <option value="Critical">Critical</option>
-                  <option value="Major">Major</option>
-                  <option value="Minor">Minor</option>
-                </select>
-              </div>
-            </div>
-
-            {form.aiExplanation && (
-              <div className="ai-explanation">
-                <Zap className="ai-explanation-icon" size={16} />
-                <div>
-                  <strong>AI Assessment:</strong> {form.aiExplanation}
+            ) : (
+              Object.keys(sections).map((sectionName) => (
+                <div key={sectionName} style={{ marginBottom: '32px' }}>
+                  <div className="form-section-title-plain">{sectionName}</div>
+                  <div className="form-grid">
+                    {sections[sectionName].map((field) => (
+                      <div className="form-group" key={field.id} style={{ gridColumn: field.type === 'textarea' ? 'span 2' : 'span 1' }}>
+                        <label>{field.label}</label>
+                        {field.type === 'textarea' ? (
+                          <textarea
+                            value={field.value}
+                            onChange={(e) => dispatch(updateDynamicField({ id: field.id, value: e.target.value }))}
+                            className={`input-bordered ${getFieldClass(field.id)}`}
+                            placeholder={field.placeholder || ''}
+                            style={{ height: '80px' }}
+                          />
+                        ) : field.type === 'select' ? (
+                          <select
+                            value={field.value}
+                            onChange={(e) => dispatch(updateDynamicField({ id: field.id, value: e.target.value }))}
+                            className={`input-bordered ${getFieldClass(field.id)}`}
+                          >
+                            {field.placeholder && <option value="">{field.placeholder}</option>}
+                            <option value="Manufacturing">Manufacturing</option>
+                            <option value="Quality Control (QC)">Quality Control (QC)</option>
+                            <option value="Warehouse">Warehouse</option>
+                          </select>
+                        ) : (
+                          <input
+                            type={field.type}
+                            value={field.value}
+                            onChange={(e) => dispatch(updateDynamicField({ id: field.id, value: e.target.value }))}
+                            className={`input-bordered ${getFieldClass(field.id)}`}
+                            placeholder={field.placeholder || ''}
+                          />
+                        )}
+                      </div>
+                    ))}
+                  </div>
                 </div>
-              </div>
+              ))
             )}
           </div>
+
+          {form.aiExplanation && (
+            <div className="ai-risk-assessment-card">
+              <div className="ai-risk-header">
+                <Zap size={16} />
+                <span>AI copilot risk assessment</span>
+              </div>
+              <div className="form-grid" style={{ marginBottom: '16px' }}>
+                <div className="form-group">
+                  <label style={{ color: 'var(--primary-color)' }}>Severity (Suggested)</label>
+                  <input type="text" readOnly value={form.severity} className={`input-bordered ${getFieldClass('severity', getSeverityClass(form.severity))}`} />
+                </div>
+                <div className="form-group">
+                  <label style={{ color: 'var(--primary-color)' }}>Suggested Next Action</label>
+                  <input type="text" readOnly value={form.suggestedNextAction} className={`input-bordered ${getFieldClass('suggestedNextAction')}`} />
+                </div>
+              </div>
+              <div className="form-group">
+                <label style={{ color: 'var(--primary-color)' }}>Initial Risk Assessment</label>
+                <textarea readOnly value={form.aiExplanation} className={`input-bordered ${getFieldClass('aiExplanation')}`} style={{ height: '60px' }} />
+              </div>
+            </div>
+          )}
 
           <div className="form-footer">
             <button className="btn btn-outline" onClick={() => dispatch(resetForm())}>
               <RotateCcw size={16} /> Reset Form
             </button>
-            <button className="btn btn-primary" onClick={handleSave} disabled={!form.title || !form.description}>
-              <Save size={16} /> Save Deviation
+            <button className="btn btn-primary" onClick={handleSave} disabled={form.fields.length === 0}>
+              <Save size={16} /> Save Record
             </button>
           </div>
         </section>
@@ -278,62 +277,6 @@ function App() {
             <span className="beta-badge">BETA</span>
           </div>
 
-          <AnimatePresence mode="wait">
-            {!selectedFile ? (
-              <motion.div 
-                key="dropzone"
-                initial={{ opacity: 0, scale: 0.95, height: 0 }}
-                animate={{ opacity: 1, scale: 1, height: 'auto' }}
-                exit={{ opacity: 0, scale: 0.95, height: 0, overflow: 'hidden' }}
-                transition={{ duration: 0.2 }}
-                className="ai-dropzone" 
-                onClick={() => fileInputRef.current?.click()}
-                onDragOver={(e) => e.preventDefault()}
-                onDrop={(e) => {
-                  e.preventDefault();
-                  if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-                    fileInputRef.current!.files = e.dataTransfer.files;
-                    setSelectedFile(e.dataTransfer.files[0]);
-                  }
-                }}
-              >
-                <UploadCloud size={32} className="ai-dropzone-icon" />
-                <div className="ai-dropzone-text">
-                  Drag & drop supporting document here
-                </div>
-                <div className="ai-dropzone-sub">
-                  or click to browse
-                </div>
-              </motion.div>
-            ) : (
-              <motion.div
-                key="file-pill"
-                initial={{ opacity: 0, scale: 0.95, height: 0 }}
-                animate={{ opacity: 1, scale: 1, height: 'auto' }}
-                exit={{ opacity: 0, scale: 0.95, height: 0, overflow: 'hidden' }}
-                transition={{ duration: 0.2 }}
-                className="file-attachment-compact"
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                  <div className="file-icon-wrapper">
-                    <FileText size={20} color="var(--primary-color)" />
-                  </div>
-                  <span className="file-name">{selectedFile.name}</span>
-                </div>
-                <button 
-                  className="file-remove-btn" 
-                  onClick={() => {
-                    setSelectedFile(null);
-                    if (fileInputRef.current) fileInputRef.current.value = '';
-                  }}
-                  title="Remove file"
-                >
-                  <X size={16} />
-                </button>
-              </motion.div>
-            )}
-          </AnimatePresence>
-
           <input 
             type="file" 
             ref={fileInputRef} 
@@ -341,16 +284,6 @@ function App() {
             onChange={handleFileUpload} 
             accept=".pdf,.docx,.txt,.xls,.jpg,.png"
           />
-          
-          <div className="supported-formats">
-            <CheckCircle2 size={16} style={{ marginTop: '2px', flexShrink: 0 }} />
-            <div>
-              <strong>Supported formats:</strong> PDF, DOCX, TXT, XLS, JPG, PNG<br/>
-              <span style={{ fontSize: '11px', opacity: 0.8 }}>Max file size: 10MB</span>
-            </div>
-          </div>
-
-          <div className="divider">OR</div>
 
           {ai.isExtracting && (
             <div className="progress-container">
@@ -412,7 +345,7 @@ function App() {
             </div>
             <button 
               className="ai-send-btn" 
-              disabled={(!inputText.trim() && !selectedFile) || ai.isExtracting}
+              disabled={!inputText.trim() || ai.isExtracting}
               onClick={handleSend}
             >
               <Send size={14} />

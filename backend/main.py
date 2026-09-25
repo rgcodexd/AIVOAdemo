@@ -78,7 +78,7 @@ async def upload_document(file: UploadFile = File(...)):
 
 @app.post("/api/save-deviation")
 def save_deviation(deviation: schemas.DeviationCreate, db: Session = Depends(get_db)):
-    db_deviation = models.Deviation(**deviation.model_dump())
+    db_deviation = models.DynamicRecord(**deviation.model_dump())
     db.add(db_deviation)
     db.commit()
     db.refresh(db_deviation)

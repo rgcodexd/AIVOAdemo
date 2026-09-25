@@ -29,17 +29,18 @@ def extract_information(state: ExtractionState):
     structured_llm = llm.with_structured_output(DeviationData)
     
     prompt = """
-    You are an AI assistant for a pharmaceutical manufacturing quality management system.
-    Your task is to analyze the following deviation report/note and extract/update the required information into the structured format.
+    You are an intelligent AI form builder for a quality management and HR system.
+    Your task is to analyze the following document/note and dynamically build a form to capture all the critical information inside it.
     
     Rules:
     - If a 'Current Form State' is provided, you must PRESERVE all its existing information UNLESS the 'New Text / Request' explicitly changes or corrects it.
-    - If the 'New Text / Request' provides a correction (e.g. "sorry the batch number is X"), UPDATE only that specific field and retain everything else.
-    - Determine 'site', 'dateOfOccurrence', 'source', 'relatedProduct', 'batchNumber', and 'title' from the text if available.
-    - Write a 'description' summarizing the event.
-    - Evaluate 'initialImpact' (High, Medium, Low) and 'initialSeverity' (Critical, Major, Minor).
-    - Provide a short 1-2 sentence 'aiExplanation' justifying your impact and severity choice.
-    - If a field is unknown and not in the current state, leave it empty.
+    - Generate a descriptive `formTitle` (e.g., 'Log Customer Complaint', 'Log Deviation') and `formDescription` (e.g., 'API & FDF Quality Assurance Module') based on the content.
+    - Build a list of `fields` to capture all the important entities, dates, locations, and descriptions found in the text.
+    - For each field, assign a `section` to group them logically (e.g., '1. ORIGIN & CUSTOMER DETAILS', '2. PRODUCT & BATCH IDENTIFICATION', '3. FACILITY & MATERIAL IMPACT', '4. DEFECT ANALYSIS').
+    - For each field, provide a camelCase `id`, a human-readable `label`, the extracted `value`, and the `type` ('text', 'textarea', or 'date').
+    - Evaluate `severity` (Critical, Major, Minor).
+    - Provide a `suggestedNextAction` (e.g., 'Route to QA Investigation & Issue Replacement').
+    - Provide an `aiExplanation` (Initial Risk Assessment detailing the potential root cause and risks).
     
     Current Form State (JSON):
     {current_state}

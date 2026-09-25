@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Text, DateTime
+from sqlalchemy import Column, Integer, String, Text, DateTime, JSON
 from sqlalchemy.sql import func
 from database import Base
 
@@ -15,5 +15,17 @@ class Deviation(Base):
     description = Column(Text)
     initialImpact = Column(String(50))
     initialSeverity = Column(String(50))
+    aiExplanation = Column(Text)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+class DynamicRecord(Base):
+    __tablename__ = "dynamic_records"
+
+    id = Column(Integer, primary_key=True, index=True)
+    formTitle = Column(String(255))
+    formDescription = Column(Text)
+    fields = Column(JSON)
+    severity = Column(String(50))
+    suggestedNextAction = Column(String(255))
     aiExplanation = Column(Text)
     created_at = Column(DateTime(timezone=True), server_default=func.now())

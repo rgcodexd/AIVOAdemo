@@ -5,29 +5,28 @@ class ExtractionRequest(BaseModel):
     text: str
     current_state: Optional[dict] = Field(default=None, description="The current state of the form to allow for contextual editing.")
 
+class DynamicField(BaseModel):
+    id: str = Field(description="Unique camelCase id for the field (e.g., employeeName, dateOfOccurrence)")
+    label: str = Field(description="Human readable label for the field (e.g., 'Employee Name', 'Date of Occurrence')")
+    value: str = Field(description="Extracted value for this field based on the document")
+    type: str = Field(description="Type of input field: 'text', 'textarea', or 'date'")
+    section: str = Field(description="The section this field belongs to (e.g., '1. ORIGIN & CUSTOMER DETAILS', '2. PRODUCT & BATCH IDENTIFICATION', '3. FACILITY & MATERIAL IMPACT', '4. DEFECT ANALYSIS')")
+
 class DeviationData(BaseModel):
-    site: Optional[str] = Field(default="", description="The manufacturing site or plant where the deviation occurred (e.g. API Manufacturing Unit, Formulation Unit).")
-    dateOfOccurrence: Optional[str] = Field(default="", description="Date of occurrence in YYYY-MM-DD format if possible, or exact string.")
-    title: Optional[str] = Field(default="", description="A short, descriptive title for the deviation.")
-    source: Optional[str] = Field(default="", description="Source of the deviation (Manufacturing, Quality Control (QC), Engineering / Maintenance, Warehouse).")
-    relatedProduct: Optional[str] = Field(default="", description="The name of the related product or material.")
-    batchNumber: Optional[str] = Field(default="", description="Batch or lot number associated with the deviation.")
-    description: Optional[str] = Field(default="", description="Detailed description of what happened, where, when, and how it was detected.")
-    initialImpact: Optional[str] = Field(default="", description="Estimated initial impact: High, Medium, or Low.")
-    initialSeverity: Optional[str] = Field(default="", description="Estimated initial severity: Critical, Major, or Minor.")
-    aiExplanation: Optional[str] = Field(default="", description="A short 1-2 sentence explanation for the initialImpact and initialSeverity choices.")
+    formTitle: str = Field(description="The title of the form being generated based on the document (e.g., 'Log Customer Complaint', 'Log Deviation')")
+    formDescription: str = Field(description="A short description of the form's purpose (e.g. 'API & FDF Quality Assurance Module')")
+    fields: list[DynamicField] = Field(description="Dynamically generated form fields based on the document content. Group them logically into sections.")
+    severity: str = Field(description="Estimated severity: Critical, Major, or Minor.")
+    suggestedNextAction: str = Field(description="Suggested next action (e.g., 'Route to QA Investigation & Issue Replacement')")
+    aiExplanation: str = Field(description="Initial Risk Assessment detailing the potential root cause and risks.")
 
 class ExtractionResponse(BaseModel):
     extracted_data: DeviationData
 
 class DeviationCreate(BaseModel):
-    site: str
-    dateOfOccurrence: str
-    title: str
-    source: str
-    relatedProduct: str
-    batchNumber: str
-    description: str
-    initialImpact: str
-    initialSeverity: str
+    formTitle: str
+    formDescription: str
+    fields: list[dict]
+    severity: str
+    suggestedNextAction: str
     aiExplanation: str
